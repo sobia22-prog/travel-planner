@@ -29,18 +29,76 @@ export default function TripsPage() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
-      setError("Please login to view your trips.");
-      setLoading(false);
+      window.location.href = '/auth/login';
       return;
     }
 
     async function loadTrips() {
       try {
-        const data = await apiFetch<Trip[]>("/api/trips?populate=destination", {}, token);
-        const tripsList = Array.isArray(data) ? data : (data as any).data || [];
-        setTrips(tripsList.filter((t: any) => t && t.title));
+        console.log('Loading trips with token:', token ? 'Token exists' : 'No token');
+
+        // Make sure to include the token in the request
+        const response = await apiFetch<any>(
+          "/api/trips?populate=*",
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+          },
+          token
+        );
+
+        console.log('Trips API Response:', response);
+
+        // Handle both array and object responses
+        let tripsData = [];
+        if (Array.isArray(response)) {
+          tripsData = response;
+        } else if (response?.data) {
+          // Handle Strapi v4 format
+          tripsData = Array.isArray(response.data) ? response.data : [response.data];
+        }
+
+        const formattedTrips = tripsData.map((trip: any) => ({
+          id: trip.id,
+          title: trip.attributes?.title || `Trip to ${trip.attributes?.destination?.data?.attributes?.name || 'Unknown'}`,
+          startDate: trip.attributes?.startDate,
+          endDate: trip.attributes?.endDate,
+          durationDays: trip.attributes?.durationDays || 0,
+          totalBudget: trip.attributes?.totalBudget || trip.attributes?.budget || 0,
+          destination: trip.attributes?.destination?.data?.attributes
+            ? {
+              id: trip.attributes.destination.data.id,
+              name: trip.attributes.destination.data.attributes.name,
+              country: trip.attributes.destination.data.attributes.country,
+            }
+            : trip.attributes?.destination?.attributes
+              ? {
+                id: trip.attributes.destination.id,
+                name: trip.attributes.destination.attributes.name,
+                country: trip.attributes.destination.attributes.country,
+              }
+              : undefined,
+          itinerary: trip.attributes?.itinerary || [],
+          budgetBreakdown: trip.attributes?.budgetBreakdown || {},
+        }));
+
+        setTrips(formattedTrips);
       } catch (err: any) {
-        setError(err.message || "Failed to load trips");
+        console.error("Error loading trips:", err);
+
+        // Handle unauthorized/forbidden errors
+        if (err.message.includes('401') || err.message.includes('403')) {
+          // Clear invalid token and redirect to login
+          localStorage.removeItem('travel_token');
+          localStorage.removeItem('jwt');
+          window.location.href = '/auth/login';
+          return;
+        }
+
+        setError(err.message || "Failed to load trips. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -70,7 +128,6 @@ export default function TripsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-cyan-500 py-12 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold mb-2">My Trips</h1>
@@ -105,55 +162,61 @@ export default function TripsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {trips.map((trip) => (
-              <div
+              <Link
+                href={`/trips/${trip.id}`}
                 key={trip.id}
-                className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all overflow-hidden"
+                className="block hover:opacity-90 transition-opacity"
               >
-                <div className="h-48 bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
-                  <div className="text-white text-5xl">🗺️</div>
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{trip.title}</h3>
-                  {trip.destination ? (
-                    <p className="text-sm text-gray-600 mb-4">
-                      {trip.destination.name}, {trip.destination.country}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-gray-500 mb-4">Destination not specified</p>
-                  )}
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Duration:</span>
-                      <span>{trip.durationDays} days</span>
-                    </div>
-                    {trip.startDate && trip.endDate && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Dates:</span>
-                        <span>
-                          {new Date(trip.startDate).toLocaleDateString()} -{" "}
-                          {new Date(trip.endDate).toLocaleDateString()}
-                        </span>
-                      </div>
+                <div className="trip-card bg-white rounded-xl shadow-md hover:shadow-xl transition-all overflow-hidden h-full flex flex-col">
+                  <div className="h-48 bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center">
+                    <div className="text-white text-5xl">🗺️</div>
+                  </div>
+                  <div className="p-6 flex-1 flex flex-col">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{trip.title}</h3>
+                    {trip.destination ? (
+                      <p className="text-sm text-gray-600 mb-4">
+                        {trip.destination.name}, {trip.destination.country}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-500 mb-4">Destination not specified</p>
                     )}
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Budget:</span>
-                      <span className="text-blue-600 font-semibold">${trip.totalBudget}</span>
+                    <div className="space-y-2 text-sm text-gray-600 mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Duration:</span>
+                        <span>{trip.durationDays} days</span>
+                      </div>
+                      {trip.startDate && trip.endDate && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Dates:</span>
+                          <span>
+                            {new Date(trip.startDate).toLocaleDateString()} -{" "}
+                            {new Date(trip.endDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Budget:</span>
+                        <span className="text-blue-600 font-semibold">${trip.totalBudget}</span>
+                      </div>
                     </div>
                   </div>
-                  {trip.destination && (
-                    <Link
-                      href={`/destinations/${trip.destination.id}`}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                    >
-                      View Destination →
-                    </Link>
-                  )}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
       </div>
+
+      <style jsx global>{`
+        .trip-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .trip-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 
+                      0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+      `}</style>
     </div>
   );
 }

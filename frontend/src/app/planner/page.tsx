@@ -97,7 +97,9 @@ export default function PlannerPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PlannerResponse | null>(null);
+  const [tripGenerated, setTripGenerated] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   useEffect(() => {
     setIsAuthenticated(!!getAuthToken());
@@ -105,7 +107,7 @@ export default function PlannerPage() {
       try {
         setError(null);
         const data = await apiFetch<any>("/api/destinations?pagination[limit]=100&populate=*");
-        
+
         // Handle Strapi v5 response format: { data: [{ id, attributes: {...} }] }
         let dests: Destination[] = [];
         if (data) {
@@ -124,7 +126,7 @@ export default function PlannerPage() {
             return d;
           }).filter((d: any) => d && d.name);
         }
-        
+
         setDestinations(dests);
       } catch (err: any) {
         console.error("Failed to load destinations:", err);
@@ -139,14 +141,12 @@ export default function PlannerPage() {
     setError(null);
     setLoading(true);
     setResult(null);
+    setTripGenerated(false);
 
     try {
+      // No need to check for token here as we'll handle saving separately
       const token = getAuthToken();
-      if (!token && saveTrip) {
-        setError("Please login first to save trips.");
-        setLoading(false);
-        return;
-      }
+      setIsAuthenticated(!!token);
 
       const body: any = {
         destinationId,
@@ -214,12 +214,82 @@ export default function PlannerPage() {
       }
 
       setResult(data);
+      setTripGenerated(true);
+      // Set default title if not set
+      if (!title && data.destination) {
+        setTitle(`Trip to ${data.destination.name}`);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to generate trip. Please try again.");
     } finally {
       setLoading(false);
     }
   }
+
+  const handleSaveTrip = async () => {
+    if (!result) return;
+
+    setSaveLoading(true);
+    setError(null);
+
+    try {
+      // Get token from localStorage
+      const token = localStorage.getItem('travel_token') || localStorage.getItem('jwt');
+      console.log('Token from localStorage:', token ? 'Token found' : 'No token found');
+
+      if (!token) {
+        setError("Please login to save trips");
+        return;
+      }
+
+      // Ensure we have the required fields
+      if (!result.destination?.id || result.budget === undefined || result.durationDays === undefined) {
+        throw new Error("Missing required trip information");
+      }
+
+      const body = {
+        destinationId: result.destination.id,
+        budget: result.budget,
+        durationDays: result.durationDays,
+        title: title || `Trip to ${result.destination.name}`,
+        startDate,
+        endDate,
+        saveTrip: true,
+        // Include any other fields from result that might be needed
+        ...(result.interests && { interests: result.interests })
+      };
+
+      console.log('Saving trip with data:', {
+        ...body,
+        // Don't log the entire result to avoid cluttering the console
+        result: {
+          destination: result.destination?.name,
+          durationDays: result.durationDays,
+          budget: result.budget
+        }
+      });
+
+      const response = await apiFetch(
+        "/api/trips/plan",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+          headers: {
+            "Content-Type": "application/json"
+          }
+        },
+        token
+      );
+
+      console.log('Save trip response:', response);
+      alert("Trip saved successfully!");
+    } catch (err: any) {
+      console.error('Error in handleSaveTrip:', err);
+      setError(err.message || "Failed to save trip. Please try again.");
+    } finally {
+      setSaveLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -304,66 +374,10 @@ export default function PlannerPage() {
                 </p>
               </div>
 
-              {isAuthenticated ? (
-                <>
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={saveTrip}
-                      onChange={(e) => setSaveTrip(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    Save this trip to my account
-                  </label>
-
-                  {saveTrip && (
-                    <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Trip Title
-                        </label>
-                        <input
-                          type="text"
-                          className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
-                          value={title}
-                          onChange={(e) => setTitle(e.target.value)}
-                          placeholder="My Amazing Trip"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Start Date
-                          </label>
-                          <input
-                            type="date"
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            End Date
-                          </label>
-                          <input
-                            type="date"
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <Link href="/auth/login" className="font-medium underline hover:text-yellow-900">
-                      Login
-                    </Link>{" "}
-                    to save your trips and access them later.
+              {isAuthenticated && !tripGenerated && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-gray-600">
+                    Login and generate a trip to save it to your account
                   </p>
                 </div>
               )}
@@ -382,6 +396,66 @@ export default function PlannerPage() {
               >
                 {loading ? "Generating Itinerary..." : "Generate Itinerary"}
               </button>
+
+              {/* Save Trip Section - Only show after trip is generated */}
+              {result && isAuthenticated && (
+                <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">Save Your Trip</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Trip Title
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="My Amazing Trip"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveTrip}
+                      disabled={!title || !startDate || !endDate || saveLoading}
+                      className="w-full rounded-lg bg-green-600 px-6 py-2 text-white font-semibold hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                      {saveLoading ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Saving...
+                        </>
+                      ) : 'Save Trip'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
 
@@ -437,7 +511,7 @@ export default function PlannerPage() {
                 {result.destination && (result.destination.latitude && result.destination.longitude) && (() => {
                   const allActivities = result.itinerary?.flatMap((day) => day.activities || []) || [];
                   const activitiesWithCoords = allActivities.filter((act) => act.latitude && act.longitude);
-                  
+
                   if (activitiesWithCoords.length > 0) {
                     return (
                       <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
@@ -459,8 +533,8 @@ export default function PlannerPage() {
                               type: act.type.toLowerCase().includes("food") || act.type.toLowerCase().includes("restaurant")
                                 ? "restaurant"
                                 : act.type.toLowerCase().includes("hotel") || act.type.toLowerCase().includes("accommodation")
-                                ? "hotel"
-                                : "attraction",
+                                  ? "hotel"
+                                  : "attraction",
                             }))}
                             center={[result.destination.latitude, result.destination.longitude]}
                             zoom={12}
@@ -479,7 +553,7 @@ export default function PlannerPage() {
                     const dayActivitiesWithCoords = day.activities?.filter(
                       (act) => act.latitude && act.longitude
                     ) || [];
-                    
+
                     return (
                       <div
                         key={day.day}
@@ -496,7 +570,7 @@ export default function PlannerPage() {
                             <p className="text-sm text-gray-600">{day.summary}</p>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-3 pl-16">
                           {day.activities?.map((act, idx) => (
                             <div
@@ -554,8 +628,8 @@ export default function PlannerPage() {
                                     type: act.type.toLowerCase().includes("food") || act.type.toLowerCase().includes("restaurant")
                                       ? "restaurant"
                                       : act.type.toLowerCase().includes("hotel") || act.type.toLowerCase().includes("accommodation")
-                                      ? "hotel"
-                                      : "attraction",
+                                        ? "hotel"
+                                        : "attraction",
                                   }))}
                                   center={[result.destination.latitude, result.destination.longitude]}
                                   zoom={13}

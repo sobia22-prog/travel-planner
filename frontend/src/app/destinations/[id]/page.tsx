@@ -88,7 +88,7 @@ export default function DestinationDetailPage() {
         // The id parameter could be either numeric id or documentId string
         let destResponse: any = null;
         let fetchError: any = null;
-        
+
         // Try direct lookup first
         try {
           destResponse = await apiFetch<any>(`/api/destinations/${id}?populate=*`);
@@ -113,16 +113,16 @@ export default function DestinationDetailPage() {
             console.error("Failed to fetch destination with filters:", filterErr);
           }
         }
-        
+
         if (!destResponse) {
           console.error("Failed to fetch destination:", fetchError);
           setLoading(false);
           return;
         }
-        
+
         // Debug: Log the raw response
         console.log('[DEST DETAIL RESPONSE]', destResponse);
-        
+
         // Handle Strapi v5 response format: { data: { id, documentId, attributes: {...} } }
         let dest: Destination | null = null;
         if (destResponse) {
@@ -130,7 +130,7 @@ export default function DestinationDetailPage() {
             // Strapi v5 format: { data: { id, documentId, attributes: {...} } }
             const data = destResponse.data;
             console.log('[DEST DATA]', data);
-            
+
             // Check if data has attributes (nested structure)
             if (data.attributes) {
               // Extract documentId and id from top level, exclude them from attributes
@@ -170,7 +170,7 @@ export default function DestinationDetailPage() {
             }
           }
         }
-        
+
         console.log('[PARSED DEST]', dest);
 
         if (!dest || !dest.name) {
@@ -189,12 +189,15 @@ export default function DestinationDetailPage() {
           }
         }
 
+        console.log('Destination data:', JSON.stringify(dest, null, 2));
+        console.log('Destination image:', dest.image);
+
         setDestination(dest);
 
         // Use the destination's numeric id for filtering related data
         // (relations typically use numeric id, not documentId)
         const destinationId = dest.id;
-        
+
         // Fetch related data in parallel
         const [attData, hotData, resData] = await Promise.all([
           apiFetch<any>(`/api/attractions?filters[destination][id][$eq]=${destinationId}&populate=*`).catch(() => ({ data: [] })),
@@ -203,30 +206,30 @@ export default function DestinationDetailPage() {
         ]);
 
         // Parse attractions
-        const atts = Array.isArray(attData) 
-          ? attData 
+        const atts = Array.isArray(attData)
+          ? attData
           : (attData?.data || []).map((a: any) => ({
-              id: a.id,
-              ...(a.attributes || a),
-            }));
+            id: a.id,
+            ...(a.attributes || a),
+          }));
         setAttractions(atts.filter((a: any) => a && a.name));
-        
+
         // Parse hotels
         const hots = Array.isArray(hotData)
           ? hotData
           : (hotData?.data || []).map((h: any) => ({
-              id: h.id,
-              ...(h.attributes || h),
-            }));
+            id: h.id,
+            ...(h.attributes || h),
+          }));
         setHotels(hots.filter((h: any) => h && h.name));
-        
+
         // Parse restaurants
         const ress = Array.isArray(resData)
           ? resData
           : (resData?.data || []).map((r: any) => ({
-              id: r.id,
-              ...(r.attributes || r),
-            }));
+            id: r.id,
+            ...(r.attributes || r),
+          }));
         setRestaurants(ress.filter((r: any) => r && r.name));
       } catch (err: any) {
         console.error("Failed to load destination:", err);
@@ -258,8 +261,8 @@ export default function DestinationDetailPage() {
           <p className="text-gray-600 mb-4">
             The destination with ID {id} could not be found. It may not exist or may not be published yet.
           </p>
-          <Link 
-            href="/destinations" 
+          <Link
+            href="/destinations"
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
           >
             <FaArrowLeft />

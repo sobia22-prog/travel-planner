@@ -40,7 +40,9 @@ export default function LoginPage() {
         },
         null
       );
-      
+      localStorage.setItem("travel_token", data.jwt);
+      localStorage.setItem("jwt", data.jwt);
+
       // Fetch user with role from /api/users/me
       let userWithRole = data.user;
       try {
@@ -59,10 +61,10 @@ export default function LoginPage() {
         console.warn("Could not fetch user role:", meErr);
         // Continue with user data from login response
       }
-      
+
       // Store auth data
       setAuth(data.jwt, userWithRole);
-      
+
       // Redirect to home (no admin panel in frontend)
       router.push("/");
     } catch (err: any) {

@@ -1,43 +1,58 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1337";
 
+// Define a custom headers type that includes Authorization
+type CustomHeaders = HeadersInit & {
+  'Authorization'?: string;
+  [key: string]: any;
+};
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
   token?: string | null
 ): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
+  const headers: CustomHeaders = {
+    'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
 
-  if (token) {
-    (headers as any).Authorization = `Bearer ${token}`;
+  // Always try to get token if not provided
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('travel_token') || localStorage.getItem('jwt') : null);
+  if (authToken && !headers['Authorization']) {
+    console.log('Adding Authorization header with token');
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
+
+  console.log('Sending request to:', path);
+  console.log('Headers:', JSON.stringify(headers, null, 2));
 
   try {
     const res = await fetch(`${API_URL}${path}`, {
       ...options,
       headers,
-      cache: "no-store",
+      credentials: 'include', // Important for cookies if using httpOnly tokens
     });
 
+    console.log('Response status:', res.status, res.statusText);
+
     if (!res.ok) {
-      let errorBody: any = null;
-      try {
-        errorBody = await res.json();
-      } catch {
-        // ignore
-      }
-      console.error("API error", res.status, errorBody || (await res.text()));
-      throw new Error(errorBody?.error?.message || `Request failed: ${res.status}`);
+      const errorText = await res.text();
+      console.error('API Error:', {
+        status: res.status,
+        statusText: res.statusText,
+        url: res.url,
+        error: errorText
+      });
+      throw new Error(`Request failed: ${res.status} ${res.statusText}`);
     }
 
-    return res.json() as Promise<T>;
-  } catch (error: any) {
-    // Handle network errors (connection refused, etc.)
-    if (error.message?.includes("Failed to fetch") || error.message?.includes("ERR_CONNECTION_REFUSED")) {
-      throw new Error("Unable to connect to server. Please make sure the backend server is running on port 1337.");
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await res.json();
     }
+    return {} as T;
+  } catch (error: any) {
+    console.error("API fetch error:", error);
     throw error;
   }
 }

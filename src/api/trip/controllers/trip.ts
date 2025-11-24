@@ -13,13 +13,35 @@ export default factories.createCoreController('api::trip.trip', ({ strapi }) => 
       filters: {
         owner: user.id,
       },
-      populate: ['destination', 'owner'],
+      populate: ['destination'],
     });
 
+    // Format the response to match Strapi v4 format
     return {
       data: trips.map((trip: any) => ({
         id: trip.id,
-        attributes: trip,
+        attributes: {
+          ...trip,
+          destination: trip.destination ? {
+            data: {
+              id: trip.destination.id,
+              attributes: {
+                name: trip.destination.name,
+                country: trip.destination.country,
+                description: trip.destination.description,
+              }
+            }
+          } : null,
+          owner: {
+            data: {
+              id: user.id,
+              attributes: {
+                username: user.username,
+                email: user.email
+              }
+            }
+          }
+        }
       })),
       meta: {
         pagination: {
@@ -38,12 +60,58 @@ export default factories.createCoreController('api::trip.trip', ({ strapi }) => 
       return ctx.unauthorized('You must be authenticated to view trips');
     }
 
-    const response = await super.findOne(ctx);
-    if ((response as any)?.data?.attributes?.owner?.data?.id !== user.id) {
-      return ctx.forbidden('You can only access your own trips');
-    }
+    try {
+      // First get the trip with owner populated
+      const trip = await strapi.entityService.findOne('api::trip.trip', ctx.params.id, {
+        populate: ['owner', 'destination'],
+      });
 
-    return response;
+      if (!trip) {
+        return ctx.notFound('Trip not found');
+      }
+
+      // Check if the current user is the owner of the trip
+      if (trip.owner?.id !== user.id) {
+        return ctx.forbidden('You can only access your own trips');
+      }
+
+      // Get the trip with only the fields we know exist
+      const fullTrip = await strapi.entityService.findOne('api::trip.trip', ctx.params.id, {
+        populate: ['destination'], // Only include known existing relations
+      });
+
+      // Format the response to match Strapi v4 format
+      return {
+        data: {
+          id: fullTrip.id,
+          attributes: {
+            ...fullTrip,
+            destination: fullTrip.destination ? {
+              data: {
+                id: fullTrip.destination.id,
+                attributes: {
+                  name: fullTrip.destination.name,
+                  country: fullTrip.destination.country,
+                  description: fullTrip.destination.description,
+                }
+              }
+            } : null,
+            owner: {
+              data: {
+                id: user.id,
+                attributes: {
+                  username: user.username,
+                  email: user.email
+                }
+              }
+            }
+          }
+        }
+      };
+    } catch (error) {
+      console.error('Error in findOne:', error);
+      return ctx.internalServerError('An error occurred while fetching the trip');
+    }
   },
 
   async create(ctx) {
@@ -110,13 +178,20 @@ export default factories.createCoreController('api::trip.trip', ({ strapi }) => 
    * Note: Public endpoint - authentication only required when saveTrip is true
    */
   async plan(ctx) {
+    console.log('Plan endpoint hit - User:', ctx.state.user ? `Authenticated as ${ctx.state.user.id}` : 'Not authenticated'); // Debug log
+    console.log('Request body:', ctx.request.body); // Debug log
+
     const user = ctx.state.user;
     const { destinationId, budget, durationDays, interests, saveTrip, title, startDate, endDate } =
       ctx.request.body || {};
 
     // Only require authentication if user wants to save the trip
-    if (saveTrip && !user) {
-      return ctx.unauthorized('You must be authenticated to save trips');
+    if (saveTrip) {
+      if (!user) {
+        console.log('Unauthorized: saveTrip is true but no user in context'); // Debug log
+        return ctx.unauthorized('You must be authenticated to save trips');
+      }
+      console.log('User is authenticated, proceeding with save'); // Debug log
     }
 
     if (!destinationId || !budget || !durationDays) {

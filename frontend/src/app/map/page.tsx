@@ -42,7 +42,7 @@ export default function MapPage() {
     async function loadDestinations() {
       try {
         const data = await apiFetch<any>("/api/destinations?pagination[limit]=100&populate=*");
-        
+
         // Handle Strapi v5 response format: { data: [{ id, attributes: {...} }] }
         let dests: Destination[] = [];
         if (data) {
@@ -61,7 +61,7 @@ export default function MapPage() {
             return d;
           });
         }
-        
+
         const validDests = dests.filter(
           (d: any) => d && d.name && d.latitude && d.longitude
         );
@@ -116,11 +116,10 @@ export default function MapPage() {
                         setMapCenter([dest.latitude!, dest.longitude!]);
                         setMapZoom(12);
                       }}
-                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                        selectedDestination?.id === dest.id
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${selectedDestination?.id === dest.id
                           ? "border-blue-600 bg-blue-50"
                           : "border-gray-200 hover:border-blue-300 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       <h3 className="font-semibold text-gray-900">{dest.name}</h3>
                       <p className="text-sm text-gray-600">{dest.country}</p>

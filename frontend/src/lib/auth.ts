@@ -13,7 +13,7 @@ export interface User {
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("travel_token");
+  return localStorage.getItem("travel_token") || localStorage.getItem("jwt");
 }
 
 export function getUser(): User | null {

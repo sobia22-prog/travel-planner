@@ -11,7 +11,7 @@ export default function Header() {
   const [user, setUser] = useState(getUser());
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname(); // get current route
+  const pathname = usePathname(); 
 
   useEffect(() => {
     setIsClient(true);
@@ -38,7 +38,7 @@ export default function Header() {
     { label: "Home", href: "/" },
     { label: "Destinations", href: "/destinations" },
     { label: "Trip Planner", href: "/planner" },
-    { label: "Map", href: "/map" },
+    // { label: "Map", href: "/map" },
     ...(isClient && user ? [{ label: "My Trips", href: "/trips" }] : []),
   ];
 
