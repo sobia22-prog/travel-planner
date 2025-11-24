@@ -3,58 +3,15 @@ export default (config, { strapi }) => {
     return async (ctx, next) => {
         // Define public routes that don't require authentication
         const publicRoutes = [
-            // Root and admin
-            { path: '/', method: 'ALL' },
-            { path: '/admin', method: 'ALL' },
-            { path: '/admin/', method: 'ALL' },
-            { path: '/admin/*', method: 'ALL' },
-
-            // Content management
-            { path: '/content-manager', method: 'ALL' },
-            { path: '/content-manager/', method: 'ALL' },
-            { path: '/content-manager/*', method: 'ALL' },
-            { path: '/content-type-builder', method: 'ALL' },
-            { path: '/content-type-builder/', method: 'ALL' },
-            { path: '/content-type-builder/*', method: 'ALL' },
-            { path: '/content-api', method: 'ALL' },
-            { path: '/content-api/', method: 'ALL' },
-            { path: '/content-api/*', method: 'ALL' },
-
-            // Authentication routes
+            // Auth routes
             { path: '/api/auth/', method: 'ALL' },
-            { path: '/api/auth/*', method: 'ALL' },  // All auth sub-routes
-            { path: '/auth', method: 'ALL' },
-            { path: '/auth/', method: 'ALL' },
-            { path: '/auth/*', method: 'ALL' },
-            { path: '/login', method: 'ALL' },
-            { path: '/register', method: 'ALL' },
-            { path: '/forgot-password', method: 'ALL' },
-            { path: '/reset-password', method: 'ALL' },
-
             // Public API routes
-            { path: '/api/upload', method: 'POST' },
-            { path: '/api/upload/*', method: 'ALL' },
-            { path: '/api/upload/files', method: 'GET' },
-            { path: '/api/upload/files/*', method: 'ALL' },
             { path: '/api/destinations', method: 'GET' },
-            { path: '/api/destinations/*', method: 'GET' },
             { path: '/api/attractions', method: 'GET' },
-            { path: '/api/attractions/*', method: 'GET' },
             { path: '/api/hotels', method: 'GET' },
-            { path: '/api/hotels/*', method: 'GET' },
             { path: '/api/restaurants', method: 'GET' },
-            { path: '/api/restaurants/*', method: 'GET' },
-
             // Uploads directory
             { path: '/uploads/', method: 'ALL' },
-
-            // Frontend pages
-            { path: '/auth/login', method: 'GET' },
-            { path: '/auth/register', method: 'GET' },
-
-            // Health check
-            { path: '/_health', method: 'GET' },
-
             // Trip planning without saving
             {
                 path: '/api/trips/plan',

@@ -186,7 +186,7 @@ export default function TripDetailPage() {
                             'Authorization': `Bearer ${token}`
                         },
                     },
-                    token // Pass token as third argument to apiFetch
+                    token
                 );
 
                 console.log('Trip API Response:', response);

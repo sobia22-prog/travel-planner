@@ -67,7 +67,7 @@ export default function TripsPage() {
           startDate: trip.attributes?.startDate,
           endDate: trip.attributes?.endDate,
           durationDays: trip.attributes?.durationDays || 0,
-          totalBudget: trip.attributes?.totalBudget || trip.attributes?.budget || 0,
+          totalBudget: trip.attributes?.budget || 0,
           destination: trip.attributes?.destination?.data?.attributes
             ? {
               id: trip.attributes.destination.data.id,
