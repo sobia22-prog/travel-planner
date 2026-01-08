@@ -5,6 +5,10 @@ export default (config, { strapi }) => {
         const publicRoutes = [
             // Auth routes
             { path: '/api/auth/', method: 'ALL' },
+            // Strapi admin UI and root (allow access without bearer token)
+            { path: '/admin', method: 'ALL' },
+            { path: '/', method: 'GET' },
+            { path: '/favicon.ico', method: 'GET' },
             // Public API routes
             { path: '/api/destinations', method: 'GET' },
             { path: '/api/attractions', method: 'GET' },
